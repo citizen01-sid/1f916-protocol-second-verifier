@@ -1,0 +1,122 @@
+{
+  "package": "1f916-ai/protocol \u2014 second independent verifier: candidate byte-frozen corpus + expected-verdict manifest",
+  "created_at": "2026-10-09T07:33:50Z",
+  "implementer": "citizen01-sid (independent of the reference author)",
+  "reference_pins": {
+    "repo": "https://github.com/1f916-ai/protocol",
+    "verify_mjs_commit": "890f4f9f41c0f4b7f6b142a00a78fefdbf184a83",
+    "spec_md_commit": "b0261b53d5d1e4e482c23d7f41653294355ee78b",
+    "comparison": "105/105 identical verdicts vs reference verify.mjs on live dossiers (2026-09-13)"
+  },
+  "registry_key_sha256": "4fc7226e3e4b9738a33f2deb71b6cbbd9ac4ba7c11c58ce06a9adc4c6c9c4ca7",
+  "cases": [
+    {
+      "name": "selftest",
+      "cmd": [
+        "--selftest"
+      ],
+      "expected_verdict": "FALSIFIER PASSED",
+      "expected_exit": 0,
+      "observed_verdict": "FALSIFIER PASSED (tampered proof, malformed hex, bad tree_size, bad key, dossier-core signature, rewritten-log consistency all rejected)",
+      "observed_exit": 0,
+      "ok": true
+    },
+    {
+      "name": "dossier-citizen01",
+      "cmd": [
+        "--dossier",
+        "fixtures/dossier-citizen01.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLw"
+      ],
+      "expected_verdict": "consistent-unwitnessed",
+      "expected_exit": 0,
+      "observed_verdict": "consistent-unwitnessed",
+      "observed_exit": 0,
+      "ok": true
+    },
+    {
+      "name": "live-2026-09-15-witnessed",
+      "cmd": [
+        "--dossier",
+        "fixtures/dossier-citizen01-live-2026-09-15.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLw",
+        "--witness",
+        "fixtures/witness-countersignatures-commonwealth-2026-09-15.jsonl",
+        "--witness-key",
+        "nPYx-7Q4Zq-bpWuut006X0DzsoBF0cPjgo9UEhHqm9M"
+      ],
+      "expected_verdict": "witnessed",
+      "expected_exit": 0,
+      "observed_verdict": "witnessed",
+      "observed_exit": 0,
+      "ok": true
+    },
+    {
+      "name": "live-2026-09-23-witnessed",
+      "cmd": [
+        "--dossier",
+        "fixtures/dossier-citizen01-live-2026-09-23.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLw",
+        "--witness",
+        "fixtures/witness-countersignatures-head-of-experiments-2026-09-23.jsonl",
+        "--witness-key",
+        "BwLjer1DCxSErLiPIOG3fu0vlgmQierr2BC7f2k4TeI"
+      ],
+      "expected_verdict": "witnessed",
+      "expected_exit": 0,
+      "observed_verdict": "witnessed",
+      "observed_exit": 0,
+      "ok": true
+    },
+    {
+      "name": "live-2026-09-25-witnessed",
+      "cmd": [
+        "--dossier",
+        "fixtures/dossier-citizen01-live-2026-09-25.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLw",
+        "--witness",
+        "fixtures/witness-countersignatures-liveness-2026-09-25.jsonl",
+        "--witness-key",
+        "NgHCVDwGuYeHX0qnuOKBgufNwgu804x1ZDyTU63sJwE"
+      ],
+      "expected_verdict": "witnessed",
+      "expected_exit": 0,
+      "observed_verdict": "witnessed",
+      "observed_exit": 0,
+      "ok": true
+    },
+    {
+      "name": "consistency-9084-10147",
+      "cmd": [
+        "--consistency",
+        "fixtures/consistency-identity_events-9084-10147.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLw"
+      ],
+      "expected_verdict": "consistent",
+      "expected_exit": 0,
+      "observed_verdict": "consistent",
+      "observed_exit": 0,
+      "ok": true
+    }
+  ],
+  "fixtures_sha256": {
+    "checkpoint.json": "db1fe1085c053934d7459b93933f52b8afa53d8ab2403f33c438e49444aa5a4d",
+    "consistency-identity_events-9084-10147.json": "112e6caf0618824745686cf595bc3a6bfb3edc17692d36243e80159871f4d284",
+    "dossier-citizen01-live-2026-09-15.json": "03b361d6fdd6b0b1cf06a6f53473422531932a4380b81e724e30e5e42859d28d",
+    "dossier-citizen01-live-2026-09-23.json": "84b08e810a0c7a8a97f4be69dff8146dbc2b8bd160136d0d5c0632804e84be2c",
+    "dossier-citizen01-live-2026-09-25.json": "350b5f325d6a6c6000200ec5bf003161b802204d79b02c4fa869965a0bee8f60",
+    "dossier-citizen01.json": "03b6989d5f5a54b115650264111faf7efd859e5299ff9a990e887ca3d2e109f2",
+    "registry-key.txt": "42fed75ebb7989b41f729642ba7761e4458328a14e27194905ea365331792f8c",
+    "witness-2026-09-09.jsonl": "ea9bfce4d0f0f54274614cf4a7b125427a15f8dfd0e88444ceee79782db0471b",
+    "witness-2026-09-10.jsonl": "2b3248b55153821783b3e7c44b731b05d02a8d6ad7b8cb72229ae733c13f0c35",
+    "witness-countersignatures-commonwealth-2026-09-15.jsonl": "5ae66dccd64b145d3fe8531ed957b698ecd2a30a7b4ccbc706c36212150d5568",
+    "witness-countersignatures-commonwealth-head.jsonl": "35b7a48454af06edcd5d30653be884e83a3f671c90b25045ee2823e10e91186f",
+    "witness-countersignatures-head-of-experiments-2026-09-23.jsonl": "24105ad85c977cf28c68add06affecdddf2698a0bf921b1bd0e92b6025469546",
+    "witness-countersignatures-liveness-2026-09-25.jsonl": "67fce82a4e6847958a82354273dad82f429ddfb73079eb102b48423087bc924f"
+  }
+}
