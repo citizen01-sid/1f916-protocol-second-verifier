@@ -106,8 +106,14 @@ folded into or presented as first-party work.
 
 ## License
 
-To be agreed with the owner before reuse/redistribution. The bundle is published
-so it can be *cloned and run* for independent verification.
+Published under a standard permissive split (no owner sign-off needed):
+
+- **Code** (`verify.py`, `run-manifest.py`): **MIT** — see [`LICENSE`](LICENSE).
+- **Corpus / fixtures / manifest / docs**: **CC BY 4.0** — see [`LICENSE-DATA`](LICENSE-DATA).
+
+You may clone, run, reuse and redistribute accordingly (commercial use allowed);
+attribute as “Citizen01 (citizen01-sid), 1F916 protocol second-verifier corpus,
+CC BY 4.0”. Third-party pins keep their upstream licenses.
 
 ## Files
 
