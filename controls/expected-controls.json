@@ -1,0 +1,278 @@
+{
+ "about": "Negative controls for the witness branch. Expected values are what each implementation DID on 2026-10-12, not what it should do: a row labelled requirement whose verify_py value contradicts its spec note is a pinned known divergence, so the runner stays green until someone changes behaviour on purpose and updates this file in the same commit.",
+ "fixture": "fixtures/witness-countersignatures-head-of-experiments-2026-09-23.jsonl (line 1039 of 1040 matches identity_events size 19555) + fixtures/dossier-citizen01-live-2026-09-23.json",
+ "observed": {
+  "at": "2026-10-12T15:15Z",
+  "verify_py": "155d7638408a4a10a96e88196f975f36a2ca3ade, python 3.13.5, cryptography 43.0.0",
+  "reference": "1f916-ai/protocol verify.mjs @ 890f4f9 and @ 728e33e (verify.mjs identical), and PR #16 head 422fa78b08f58c6d6436cd7d5b7bdc230ee89274, node 20.19.2",
+  "reference_rerun_2026-10-13": "1f916-ai/protocol PR #19 head 42437a4f61146591f56a9c4be9c9465bec8a184d, node 20.19.2: all nine verdict/exit pairs identical to 728e33e; stdout byte-identical on 7 rows, and on witness_public_key-flipped and registry-field-deleted exactly one line differs (the false 'covers sizes ... 19555 but not 19555' hint is replaced by '1 witness line(s) ... were read and not counted')",
+  "rerun_2026-10-16T14:53Z": "verify.py @ c3f0911 (same as 155d763 for verify.py), verify.mjs @ protocol 728e33e, python 3.13 / node 20; three new rows observed: refusal-appended-after-good witnessed/0 vs diverged/1; consistency-verified-from-19556 and -99999 both witnessed/0 on both. Aura c108198 agreed the pin. Fixture sha256 24105ad8\u20265469546."
+ },
+ "labels": {
+  "requirement": "spec text fixes the verdict (section cited)",
+  "choice": "spec is silent; each implementation's choice is pinned",
+  "proposed-requirement": "one reading of the spec fixes it, another does not; contested"
+ },
+ "credits": "rows 2-5 are tally-stick's (c100357) and were first run on both implementations by Jaybob (#8324, on the 09-15 commonwealth fixture); the label split follows ning-qinghan (c103270) and Jaybob (c103454). New rows refusal-appended-after-good and consistency-verified-from-{19556,99999} proposed in #8890 c108127; Aura agreed in c108198; tally-stick c108204 pinned N<=tree_size as the honest floor.",
+ "rows": [
+  {
+   "name": "baseline",
+   "mutation": "none",
+   "label": "requirement",
+   "spec_note": "SPEC \u00a78 witnessed",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "witnessed",
+     "exit": 0
+    }
+   },
+   "agree": true,
+   "strict": {
+    "verdict": "witnessed",
+    "exit": 0,
+    "strength": "MUST",
+    "cite": "SPEC \u00a78 witnessed (line 314 @ 728e33e)"
+   }
+  },
+  {
+   "name": "witness_public_key-flipped",
+   "mutation": "matching line's witness_public_key changed by one char; --witness-key still pinned",
+   "label": "requirement",
+   "spec_note": "SPEC \u00a78 (line 331 @ b0261b5) lists 'a key does not match a pin' under diverged. Was proposed-requirement; tally-stick withdrew the spec-silent reading in c104256 (#8269), so verify.py's witnessed/0 here is a pinned known divergence (verify_witness_line never compares the line's witness_public_key to --witness-key).",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "diverged",
+     "exit": 1
+    }
+   },
+   "agree": false,
+   "strict": {
+    "verdict": "diverged",
+    "strength": "MUST",
+    "cite": "SPEC \u00a78 line 331 @ 728e33e: a key does not match a pin -> diverged"
+   }
+  },
+  {
+   "name": "status-refused-registry-key-epoch",
+   "mutation": "status set to refused-registry-key-epoch",
+   "label": "requirement",
+   "spec_note": "SPEC \u00a76 NORMATIVE (2): a refusal line MUST fail the run",
+   "verify_py": {
+    "verdict": "diverged",
+    "exit": 1
+   },
+   "reference": {
+    "default": {
+     "verdict": "diverged",
+     "exit": 1
+    }
+   },
+   "agree": true,
+   "strict": {
+    "verdict": "diverged",
+    "exit_not": 0,
+    "strength": "MUST",
+    "cite": "SPEC \u00a76 NORMATIVE (2), lines 250-254 @ 728e33e: a refusal line MUST fail the run"
+   }
+  },
+  {
+   "name": "status-registry_signature_invalid",
+   "mutation": "status set to registry_signature_invalid",
+   "label": "requirement",
+   "spec_note": "SPEC \u00a76 NORMATIVE (2)",
+   "verify_py": {
+    "verdict": "diverged",
+    "exit": 1
+   },
+   "reference": {
+    "default": {
+     "verdict": "diverged",
+     "exit": 1
+    }
+   },
+   "agree": true,
+   "strict": {
+    "verdict": "diverged",
+    "exit_not": 0,
+    "strength": "MUST",
+    "cite": "SPEC \u00a76 NORMATIVE (2), lines 250-254 @ 728e33e"
+   }
+  },
+  {
+   "name": "registry-field-deleted",
+   "mutation": "line's unsigned registry label removed",
+   "label": "choice",
+   "spec_note": "Spec silent on the label. Reference @890f4f9 skips the line (witness-unusable); protocol PR #16 @422fa78 verifies under the caller's origin (witnessed), matching verify.py (Jaybob #8324, tally-stick c101614).",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "witness-unusable",
+     "exit": 3
+    },
+    "422fa78b08f58c6d6436cd7d5b7bdc230ee89274": {
+     "verdict": "witnessed",
+     "exit": 0
+    }
+   },
+   "agree": false
+  },
+  {
+   "name": "consistency-first-observation",
+   "mutation": "consistency changed from 'verified from 19545' to 'first observation'",
+   "label": "requirement",
+   "spec_note": "SPEC \u00a76 NORMATIVE (1): a verifier MUST NOT grant its top verdict to a countersignature whose continuity the witness did not prove. verify.py grants witnessed: this row is expected to FAIL until verify.py reads the consistency field.",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "consistent-unwitnessed",
+     "exit": 0
+    }
+   },
+   "agree": false,
+   "strict": {
+    "not_verdict": "witnessed",
+    "strength": "MUST",
+    "cite": "SPEC \u00a76 NORMATIVE (1), lines 246-250 @ 728e33e: MUST NOT grant its top verdict"
+   }
+  },
+  {
+   "name": "root-hex-flipped",
+   "mutation": "matching line's root changed by one hex char (its signature no longer verifies)",
+   "label": "choice",
+   "spec_note": "Reference: 'witness copy DISAGREES' -> diverged. verify.py matches lines on root too, so the line is not found -> witness-unusable. Both exit 1. SPEC \u00a78 diverged covers 'a witnessed head conflicts', but this line's signature does not verify, so whether it is a witnessed head is open.",
+   "verify_py": {
+    "verdict": "witness-unusable",
+    "exit": 1
+   },
+   "reference": {
+    "default": {
+     "verdict": "diverged",
+     "exit": 1
+    }
+   },
+   "agree": false
+  },
+  {
+   "name": "status-pending",
+   "mutation": "status changed from countersigned to pending (signature still valid)",
+   "label": "choice",
+   "spec_note": "Reference counts only status=countersigned as a countersignature (consistent-unwitnessed); verify.py ignores status except refusal words (witnessed). Spec does not define the status vocabulary beyond refusals.",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "consistent-unwitnessed",
+     "exit": 0
+    }
+   },
+   "agree": false
+  },
+  {
+   "name": "matching-line-deleted",
+   "mutation": "head-matching line removed",
+   "label": "requirement",
+   "spec_note": "SPEC \u00a78 witness-unusable (both agree on the verdict). SPEC \u00a78 also says implementations SHOULD make its exit status distinct: reference exits 3, verify.py exits 1, the same code as diverged.",
+   "verify_py": {
+    "verdict": "witness-unusable",
+    "exit": 1
+   },
+   "reference": {
+    "default": {
+     "verdict": "witness-unusable",
+     "exit": 3
+    }
+   },
+   "agree": false,
+   "strict": {
+    "verdict": "witness-unusable",
+    "exit_not": 1,
+    "strength": "SHOULD",
+    "cite": "SPEC \u00a78 lines 320-328 @ 728e33e: witness-unusable; exit status SHOULD be distinct (1 is diverged's code)"
+   }
+  },
+  {
+   "name": "refusal-appended-after-good",
+   "mutation": "after the head-matching countersigned line, append a clone with status=refused-regression and witness_sig removed",
+   "label": "requirement",
+   "spec_note": "SPEC \u00a76 NORMATIVE (2): a refusal line MUST fail the run. verify.py ignores a refusal that appears after a good matching line (pinned known divergence: witnessed/0). Reference diverged/1.",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "diverged",
+     "exit": 1
+    }
+   },
+   "agree": false,
+   "strict": {
+    "verdict": "diverged",
+    "exit_not": 0,
+    "strength": "MUST",
+    "cite": "SPEC \u00a76 NORMATIVE (2), lines 250-254 @ 728e33e: a refusal line MUST fail the run, wherever it sits"
+   }
+  },
+  {
+   "name": "consistency-verified-from-19556",
+   "mutation": "consistency set to 'verified from 19556' (N = tree_size+1 = 19556)",
+   "label": "proposed-requirement",
+   "spec_note": "N > tree_size is unsigned (outside 1f916.witness.v1 preimage). Both implementations currently accept it (witnessed/0). Floor N<=tree_size can ship without a preimage change; signing from-size needs a spec bump (Aura c107957 / c108198; tally-stick c108204).",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "witnessed",
+     "exit": 0
+    }
+   },
+   "agree": true,
+   "strict": {
+    "not_verdict": "witnessed",
+    "strength": "PROPOSED",
+    "cite": "proposed floor N<=tree_size (tally-stick c108204; #8890 c108127); not yet spec text"
+   }
+  },
+  {
+   "name": "consistency-verified-from-99999",
+   "mutation": "consistency set to 'verified from 99999' (N >> tree_size)",
+   "label": "proposed-requirement",
+   "spec_note": "Same class as consistency-verified-from-19556; large N. Both witnessed/0 today.",
+   "verify_py": {
+    "verdict": "witnessed",
+    "exit": 0
+   },
+   "reference": {
+    "default": {
+     "verdict": "witnessed",
+     "exit": 0
+    }
+   },
+   "agree": true,
+   "strict": {
+    "not_verdict": "witnessed",
+    "strength": "PROPOSED",
+    "cite": "same class as consistency-verified-from-19556"
+   }
+  }
+ ],
+ "strict_about": "Added 2026-10-16 after Aura c109326 (#8890): the pinned columns record what each implementation DID, so a green default run documents a divergence rather than surfacing it. `strict` records what the spec REQUIRES, on requirement rows (MUST or SHOULD) and on proposed-requirement rows (PROPOSED). `python3 controls/negative-controls.py --strict` judges every implementation that ran against `strict` instead of the pin and exits 1 if any MUST or SHOULD row fails; `--strict --proposed` also fails on PROPOSED rows. Choice rows have no strict value. Matcher keys: verdict (must equal), not_verdict (must differ), exit (must equal), exit_not (must differ)."
+}
