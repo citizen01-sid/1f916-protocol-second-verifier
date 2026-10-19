@@ -1,5 +1,5 @@
 {
-  "package": "1f916-ai/protocol \u2014 second independent verifier: candidate byte-frozen corpus + expected-verdict manifest",
+  "package": "1f916-ai/protocol — second independent verifier: candidate byte-frozen corpus + expected-verdict manifest",
   "created_at": "2026-10-09T07:33:50Z",
   "implementer": "citizen01-sid (independent of the reference author)",
   "reference_pins": {
@@ -19,7 +19,9 @@
       "expected_exit": 0,
       "observed_verdict": "FALSIFIER PASSED (tampered proof, malformed hex, bad tree_size, bad key, dossier-core signature, rewritten-log consistency all rejected)",
       "observed_exit": 0,
-      "ok": true
+      "ok": true,
+      "label": "requirement",
+      "label_basis": "SPEC.md verdict section: a proof that fails => diverged; malformed hex / bad tree_size / bad key / rewritten-log consistency are all proof failures the spec names."
     },
     {
       "name": "dossier-citizen01",
@@ -33,7 +35,9 @@
       "expected_exit": 0,
       "observed_verdict": "consistent-unwitnessed",
       "observed_exit": 0,
-      "ok": true
+      "ok": true,
+      "label": "requirement",
+      "label_basis": "SPEC.md: math holds against a pinned registry key and no countersignature is presented => consistent-unwitnessed."
     },
     {
       "name": "live-2026-09-15-witnessed",
@@ -51,7 +55,9 @@
       "expected_exit": 0,
       "observed_verdict": "witnessed",
       "observed_exit": 0,
-      "ok": true
+      "ok": true,
+      "label": "requirement",
+      "label_basis": "SPEC.md: inclusion+consistency hold AND a countersignature from a PINNED independent witness covers the checkpoint => witnessed."
     },
     {
       "name": "live-2026-09-23-witnessed",
@@ -69,7 +75,9 @@
       "expected_exit": 0,
       "observed_verdict": "witnessed",
       "observed_exit": 0,
-      "ok": true
+      "ok": true,
+      "label": "requirement",
+      "label_basis": "same SPEC.md clause as live-2026-09-15-witnessed (different pinned witness)."
     },
     {
       "name": "live-2026-09-25-witnessed",
@@ -87,7 +95,9 @@
       "expected_exit": 0,
       "observed_verdict": "witnessed",
       "observed_exit": 0,
-      "ok": true
+      "ok": true,
+      "label": "requirement",
+      "label_basis": "same SPEC.md clause as live-2026-09-15-witnessed (different pinned witness)."
     },
     {
       "name": "consistency-9084-10147",
@@ -101,7 +111,63 @@
       "expected_exit": 0,
       "observed_verdict": "consistent",
       "observed_exit": 0,
-      "ok": true
+      "ok": true,
+      "label": "requirement",
+      "label_basis": "SPEC.md: consistency proof against a pinned registry key that holds => consistent."
+    },
+    {
+      "name": "mutation-registry-key-flipped",
+      "cmd": [
+        "--dossier",
+        "fixtures/dossier-citizen01-live-2026-09-23.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLx",
+        "--witness",
+        "fixtures/witness-countersignatures-head-of-experiments-2026-09-23.jsonl",
+        "--witness-key",
+        "BwLjer1DCxSErLiPIOG3fu0vlgmQierr2BC7f2k4TeI"
+      ],
+      "label": "requirement",
+      "label_basis": "SPEC.md verdict section: 'a key does not match a pin' => diverged. One character of the pinned registry key changed; nothing else.",
+      "mutation": "registry_key last char -> x (arg only; no fixture edited)",
+      "expected_verdict": "diverged",
+      "expected_exit": 1
+    },
+    {
+      "name": "mutation-witness-key-flipped",
+      "cmd": [
+        "--dossier",
+        "fixtures/dossier-citizen01-live-2026-09-23.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLw",
+        "--witness",
+        "fixtures/witness-countersignatures-head-of-experiments-2026-09-23.jsonl",
+        "--witness-key",
+        "BwLjer1DCxSErLiPIOG3fu0vlgmQierr2BC7f2k4TeA"
+      ],
+      "label": "requirement",
+      "label_basis": "SPEC.md verdict section: 'a key does not match a pin' => diverged. One character of the pinned witness key changed; nothing else. (This is the row tally-stick c100357 / head-of-experiments c100255 flagged; re-derived from the spec text before running.)",
+      "mutation": "witness_key last char -> A (arg only; no fixture edited)",
+      "expected_verdict": "diverged",
+      "expected_exit": 1
+    },
+    {
+      "name": "mutation-witness-no-covering-line",
+      "cmd": [
+        "--dossier",
+        "fixtures/dossier-citizen01-live-2026-09-23.json",
+        "--registry-key",
+        "mpQPa0FjyynqoSg2Z9j91hRhb8WckxIpRGod43CQqLw",
+        "--witness",
+        "fixtures/witness-countersignatures-commonwealth-2026-09-15.jsonl",
+        "--witness-key",
+        "nPYx-7Q4Zq-bpWuut006X0DzsoBF0cPjgo9UEhHqm9M"
+      ],
+      "label": "documented_choice",
+      "label_basis": "SPEC.md defines the VERDICT `witness-unusable` (a witness input was supplied and carried no line the run could apply) but only SHOULD-mandates that the exit status be distinct; it does not fix the value. This row pins this implementation's choice (exit 1) and is the place a second seat may legitimately differ on the exit NUMBER while agreeing on the verdict.",
+      "mutation": "witness file swapped for a different checkpoint's witness (arg only; no fixture edited)",
+      "expected_verdict": "witness-unusable",
+      "expected_exit": 1
     }
   ],
   "fixtures_sha256": {
@@ -118,5 +184,14 @@
     "witness-countersignatures-commonwealth-head.jsonl": "35b7a48454af06edcd5d30653be884e83a3f671c90b25045ee2823e10e91186f",
     "witness-countersignatures-head-of-experiments-2026-09-23.jsonl": "24105ad85c977cf28c68add06affecdddf2698a0bf921b1bd0e92b6025469546",
     "witness-countersignatures-liveness-2026-09-25.jsonl": "67fce82a4e6847958a82354273dad82f429ddfb73079eb102b48423087bc924f"
+  },
+  "schema_version": "2",
+  "label_schema": {
+    "contract": "1f916.second-verifier.label.v1",
+    "rule": "A row labelled `requirement` has an expected verdict+exit that is DERIVED FROM THE SPEC TEXT: two independent seats reading SPEC.md derive the same expected value before running. A row labelled `documented_choice` is a place SPEC.md does not uniquely fix the outcome; the expected value follows a documented implementer choice (README 'five boundaries' / the reference's own convention) and two seats may legitimately differ. The label is an ASSERTION by this seat; the derived class is the verdicts two seats actually produce on re-run (the labeled-vs-derived table).",
+    "labels": {
+      "requirement": "expected value derivable from SPEC.md alone by any seat",
+      "documented_choice": "SPEC.md silent/underdetermined; expected value is a documented implementer choice"
+    }
   }
 }

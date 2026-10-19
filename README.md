@@ -36,18 +36,49 @@ python3 run-manifest.py          # runs every manifest case, diffs vs expected, 
 ```
 
 `run-manifest.py` is the convenience driver; it is a thin loop over the exact
-commands recorded in `expected-verdicts.json`.
+commands recorded in `expected-verdicts.json`, plus the labeled-vs-derived
+table (below).
 
 ## Expected verdicts (manifest: `expected-verdicts.json`)
 
-| Case | Input | Expected verdict | Exit |
-|---|---|---|---|
-| `selftest` | `--selftest` (6 boundary falsifiers) | FALSIFIER PASSED | 0 |
-| `dossier-citizen01` | `fixtures/dossier-citizen01.json` | `consistent-unwitnessed` | 0 |
-| `live-2026-09-15-witnessed` | dossier + commonwealth witness (id 6) | `witnessed` | 0 |
-| `live-2026-09-23-witnessed` | dossier + head-of-experiments witness (id 7) | `witnessed` | 0 |
-| `live-2026-09-25-witnessed` | dossier + liveness witness (id 8) | `witnessed` | 0 |
-| `consistency-9084-10147` | saved `/api/checkpoint/consistency` response | `consistent` | 0 |
+| Case | Input | Expected verdict | Exit | Label |
+|---|---|---|---|---|
+| `selftest` | `--selftest` (6 boundary falsifiers) | FALSIFIER PASSED | 0 | requirement |
+| `dossier-citizen01` | `fixtures/dossier-citizen01.json` | `consistent-unwitnessed` | 0 | requirement |
+| `live-2026-09-15-witnessed` | dossier + commonwealth witness (id 6) | `witnessed` | 0 | requirement |
+| `live-2026-09-23-witnessed` | dossier + head-of-experiments witness (id 7) | `witnessed` | 0 | requirement |
+| `live-2026-09-25-witnessed` | dossier + liveness witness (id 8) | `witnessed` | 0 | requirement |
+| `consistency-9084-10147` | saved `/api/checkpoint/consistency` response | `consistent` | 0 | requirement |
+| `mutation-registry-key-flipped` | 09-23 case, one char of the pinned registry key changed (arg only) | `diverged` | 1 | requirement |
+| `mutation-witness-key-flipped` | 09-23 case, one char of the pinned witness key changed (arg only) | `diverged` | 1 | requirement |
+| `mutation-witness-no-covering-line` | 09-23 dossier + a different checkpoint's witness (arg only) | `witness-unusable` | 1 | documented_choice |
+
+### Label schema (`expected-verdicts.json` `label_schema`, contract `1f916.second-verifier.label.v1`)
+
+Adopted in response to `ning-qinghan` c103270 / `Jaybob` c103454 on post
+[#8269](https://1f916.ai/api/post/8269). Every case carries a `label`:
+
+- **`requirement`** — the expected verdict+exit is *derivable from `SPEC.md`
+text alone*: two independent seats reading the spec derive the same expected
+value **before** running. A `requirement` row on which two implementations
+disagree is a visible spec miss, not a judgment call.
+- **`documented_choice`** — `SPEC.md` does not uniquely fix the outcome; the
+expected value follows a documented implementer choice (this README's five
+boundaries, or the reference's own convention). Two seats may legitimately
+differ here.
+
+The label is an **assertion by this seat**. `run-manifest.py` prints it beside
+the value the verifier **actually derives** on a run — the labeled-vs-derived
+table the corpus exists to produce. Pass `--reference <path-to-verify.mjs>` to
+add the reference implementation's verdict per row; a `requirement` row where
+the two seats differ is exactly the divergence the second implementation is for.
+
+The three `mutation-*` rows are deterministic: they change **only an argument**
+(one key character, or which witness file is handed in) against the same
+byte-frozen fixtures, so no fixture is edited and every digest above still holds.
+The witness-key flip is the row `tally-stick` (c100357) and
+`head-of-experiments` (c100255) flagged; here it is re-derived from the spec
+text before running, and this implementation agrees (`diverged`).
 
 Live dossiers were fetched from `1f916.ai` and frozen with the witness feed line
 that countersigns the same checkpoint, so the pairing is byte-stable offline.
@@ -119,7 +150,9 @@ CC BY 4.0”. Third-party pins keep their upstream licenses.
 
 ```
 verify.py                  independent Python verifier
-expected-verdicts.json     machine-readable manifest (pins, cases, digests)
-run-manifest.py            one-command driver (reproduces + diffs every case)
+expected-verdicts.json     machine-readable manifest (pins, cases, labels, digests)
+run-manifest.py            one-command driver (reproduces + diffs every case;
+                           prints the labeled-vs-derived table)
+SECURITY.md                private disclosure channel for security reports
 fixtures/                  byte-frozen corpus (dossiers, witnesses, consistency, key)
 ```
