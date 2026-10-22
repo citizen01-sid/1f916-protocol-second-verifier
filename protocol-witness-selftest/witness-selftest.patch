@@ -1,0 +1,167 @@
+--- a/witness.mjs
++++ b/witness.mjs
+@@ -28,30 +28,33 @@
+ const args = {};
+ for (let i = 2; i < process.argv.length; i += 2) args[process.argv[i]?.slice(2)] = process.argv[i + 1];
+ const registry = (args.registry ?? "https://1f916.ai").replace(/\/$/, "");
+-const stateDir = args.state ?? "./witness-state";
+-mkdirSync(stateDir, { recursive: true });
++let stateDir = args.state ?? "./witness-state";
+ 
+ const b64u = (b) => Buffer.from(b).toString("base64url");
+ const fromB64u = (s) => Buffer.from(s, "base64url");
+ const sha256 = (b) => createHash("sha256").update(b).digest();
+ const nodeHash = (l, r) => sha256(Buffer.concat([Buffer.from([1]), l, r]));
+ 
+-// --- witness identity ---
+-const keyPath = join(stateDir, "witness-key.json");
+-let keys;
+-if (existsSync(keyPath)) {
+-  keys = JSON.parse(readFileSync(keyPath, "utf8"));
+-} else {
+-  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+-  keys = {
+-    public_key: publicKey.export({ format: "jwk" }).x,
+-    private_key_pkcs8_b64: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64"),
+-    note: "This key IS your witness identity. Back it up. Never send it anywhere.",
+-  };
+-  writeFileSync(keyPath, JSON.stringify(keys, null, 2), { mode: 0o600 });
+-  console.error(`new witness identity generated at ${keyPath} — public key ${keys.public_key}`);
++// --- witness identity (loaded inside run(): --selftest points stateDir at a
++// throwaway directory before the identity is read or created) ---
++function loadIdentity() {
++  mkdirSync(stateDir, { recursive: true });
++  const keyPath = join(stateDir, "witness-key.json");
++  let keys;
++  if (existsSync(keyPath)) {
++    keys = JSON.parse(readFileSync(keyPath, "utf8"));
++  } else {
++    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
++    keys = {
++      public_key: publicKey.export({ format: "jwk" }).x,
++      private_key_pkcs8_b64: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64"),
++      note: "This key IS your witness identity. Back it up. Never send it anywhere.",
++    };
++    writeFileSync(keyPath, JSON.stringify(keys, null, 2), { mode: 0o600 });
++    console.error(`new witness identity generated at ${keyPath} — public key ${keys.public_key}`);
++  }
++  return { keys, privKey: createPrivateKey({ key: Buffer.from(keys.private_key_pkcs8_b64, "base64"), format: "der", type: "pkcs8" }) };
+ }
+-const privKey = createPrivateKey({ key: Buffer.from(keys.private_key_pkcs8_b64, "base64"), format: "der", type: "pkcs8" });
+ 
+ // Tree sizes and indices arrive as JSON numbers from an untrusted party, and
+ // JavaScript's `>>` coerces to int32: for n = 2^32+1, `sn >>= 1` snaps to 0,
+@@ -95,8 +98,10 @@
+   return fr.toString("hex") === oldRoot && sr.toString("hex") === newRoot && sn === 0;
+ }
+ 
++async function run() {
++const { keys, privKey } = loadIdentity();
+ const statePath = join(stateDir, "last-heads.json");
+-const lastHeads = existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")) : {};
++let lastHeads = existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")) : {};
+ const logPath = join(stateDir, "countersignatures.jsonl");
+ const at = new Date().toISOString();
+ let failures = 0;
+@@ -104,7 +109,7 @@
+ const cpRes = await fetch(`${registry}/api/checkpoint`);
+ if (!cpRes.ok) {
+   console.error(`${registry}/api/checkpoint answered ${cpRes.status} — recording nothing, exiting non-zero`);
+-  process.exit(1);
++  return failures + 1;
+ }
+ const cp = await cpRes.json();
+ // The registry key must not come from the registry alone: verifying its
+@@ -117,12 +122,12 @@
+ const offered = cp.registry_public_key?.x;
+ if (typeof offered !== "string" || !offered) {
+   console.error("checkpoint response carries no registry_public_key — refusing");
+-  process.exit(1);
++  return failures + 1;
+ }
+ if (pinned && pinned !== offered) {
+   appendFileSync(logPath, JSON.stringify({ at, registry, status: "refused-registry-key-changed", pinned, offered }) + "\n");
+   console.error(`REGISTRY KEY CHANGED (pinned ${pinned.slice(0, 12)}…, offered ${offered.slice(0, 12)}…) — recorded UNSIGNED, nothing countersigned. This is either a rotation you must confirm out of band, or an impostor.`);
+-  process.exit(1);
++  return failures + 1;
+ }
+ if (!pinned) {
+   writeFileSync(pinPath, JSON.stringify({ registry, registry_public_key: offered, first_seen: at }, null, 2));
+@@ -199,5 +204,76 @@
+ writeFileSync(statePath, JSON.stringify(lastHeads, null, 2));
+ if (failures > 0) {
+   console.error(`${failures} head(s) refused — see ${logPath}. A refusal is evidence, not an error in this witness.`);
+-  process.exit(1);
+ }
++return failures;
++}
++
++// --- --selftest: the two-phase fork fixture, in-process, no socket -----------
++// `selftest.mjs` cannot reach witness.mjs (it never runs it), so both of the
++// witness's consistency checks were outside the suite until this mode existed.
++// It runs the real witness body twice against an in-process stub registry:
++//   phase 1 — honest checkpoint at m = 2^31+2, root R_m  -> must countersign.
++//   phase 2 — honest checkpoint at n = 2^31+4, root R_new, but the consistency
++//             proof's path[0] is a *different* valid root (the fork) folding to
++//             R_new; the checkpoint signature is honest in both phases, so only
++//             the proof's old root is forged -> must refuse, state not advanced.
++// Delete the `fr.toString("hex") === oldRoot &&` conjunct in verifyConsistency
++// and phase 2 countersigns instead: the mode then fails, which is the point.
++async function selftest() {
++  const { mkdtempSync, rmSync } = await import("node:fs");
++  const { tmpdir } = await import("node:os");
++  const dir = args.state ?? mkdtempSync(`${tmpdir()}/witness-selftest-`);
++  rmSync(dir, { recursive: true, force: true });
++  mkdirSync(dir, { recursive: true });
++  stateDir = dir;
++  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
++  const keyX = publicKey.export({ format: "jwk" }).x;
++  const created = 1700000000000;
++  const sigFor = (s, r) => b64u(edSign(null, Buffer.from(`1f916.checkpoint.v1:identity_events:${s}:${r}:${created}`, "utf8"), privateKey));
++  const depthOf = (m, n) => { let fn = half(m - 1), sn = half(n - 1), d = 1; while (fn % 2 === 1) { fn = half(fn); sn = half(sn); } while (sn !== 0) { if (fn % 2 === 1 || fn === sn) { while (fn % 2 === 0 && fn !== 0) { fn = half(fn); sn = half(sn); } } fn = half(fn); sn = half(sn); d++; } return d; };
++  const foldTo = (m, n, pathHex) => { const path = pathHex.map((h) => Buffer.from(h, "hex")); let fn = m - 1, sn = n - 1; while (fn % 2 === 1) { fn = half(fn); sn = half(sn); } let fr = path[0], sr = path[0], i = 1; for (; i < path.length; i++) { const c = path[i]; if (sn === 0) throw new Error("long"); if (fn % 2 === 1 || fn === sn) { fr = nodeHash(c, fr); sr = nodeHash(c, sr); while (fn % 2 === 0 && fn !== 0) { fn = half(fn); sn = half(sn); } } else { sr = nodeHash(sr, c); } fn = half(fn); sn = half(sn); } return sr.toString("hex"); };
++  const git = (s) => sha256(Buffer.from(s)).toString("hex");
++  const M = 2 ** 31 + 2, N = 2 ** 31 + 4;
++  const D = depthOf(M, N);
++  const p1 = Array.from({ length: D }, (_, i) => git("p1-" + i));
++  const p2 = Array.from({ length: D }, (_, i) => git("p2-" + i));
++  const R_M = foldTo(M, N, p1);
++  const R_NEW = foldTo(M, N, p2);
++  const R_FORK = p2[0];
++  if (R_FORK === R_M) { console.error("selftest: fixture is degenerate (fork root equals witnessed root)"); return 1; }
++  let phase = 1;
++  globalThis.fetch = async (url, opts) => {
++    void opts;
++    const u = new URL(String(url));
++    const json = (o) => ({ ok: true, status: 200, json: async () => o });
++    if (u.pathname === "/api/checkpoint") {
++      const size = phase === 1 ? M : N, root = phase === 1 ? R_M : R_NEW;
++      return json({ registry_public_key: { x: keyX }, checkpoints: [{ log: "identity_events", tree_size: size, root, sig: sigFor(size, root), created_at: created }] });
++    }
++    if (u.pathname === "/api/checkpoint/consistency") return json({ log: "identity_events", from: M, to: N, proof: p2 });
++    return { ok: false, status: 404, json: async () => ({}) };
++  };
++  const lastLine = () => { const p = join(dir, "countersignatures.jsonl"); if (!existsSync(p)) return null; const ls = readFileSync(p, "utf8").trim().split("\n"); return ls.length ? JSON.parse(ls[ls.length - 1]) : null; };
++  const rows = [];
++  for (phase = 1; phase <= 2; phase++) {
++    const f = await run();
++    const line = lastLine();
++    rows.push({ phase, failures: f, status: line?.status ?? "(no line)" });
++  }
++  const stateAfter = JSON.parse(readFileSync(join(dir, "last-heads.json"), "utf8"));
++  console.log(`selftest: in-process registry stub, state=${dir}`);
++  for (const r of rows) console.log(`  phase${r.phase}: exit-failures=${r.failures} status=${r.status}`);
++  const ok = rows[0].status === "countersigned" && rows[1].status === "refused-consistency-failure" && rows[1].failures >= 1 && stateAfter.identity_events?.tree_size === M;
++  if (ok) console.log("selftest: PASS — honest witness refuses a forked old root, and its state stays at the last proven head");
++  else console.error("selftest: FAIL — expected countersigned then refused-consistency-failure with state held at m; got " + JSON.stringify(rows));
++  return ok ? 0 : 1;
++}
++
++// A bare flag is accepted (`node witness.mjs --selftest`): args above is a
++// value-pair parser, so a lone flag would otherwise read as undefined.
++const SELFTEST = process.argv.includes("--selftest");
++
++if (SELFTEST) {
++  process.exit(await selftest());
++}
++process.exit((await run()) > 0 ? 1 : 0);
