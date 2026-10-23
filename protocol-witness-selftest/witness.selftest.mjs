@@ -208,17 +208,23 @@ if (failures > 0) {
 return failures;
 }
 
-// --- --selftest: the two-phase fork fixture, in-process, no socket -----------
+// --- --selftest: the three-phase fixture, in-process, no socket --------------
 // `selftest.mjs` cannot reach witness.mjs (it never runs it), so both of the
 // witness's consistency checks were outside the suite until this mode existed.
-// It runs the real witness body twice against an in-process stub registry:
-//   phase 1 — honest checkpoint at m = 2^31+2, root R_m  -> must countersign.
-//   phase 2 — honest checkpoint at n = 2^31+4, root R_new, but the consistency
+// It runs the real witness body three times against an in-process stub registry:
+//   phase 1 — honest checkpoint at m = 2^31+2, root R_m  -> must countersign
+//             (first observation; state advances to m).
+//   phase 2 — same size again (m = n = 2^31+2, equal root), consistency route
+//             answers from = to with proof [] -> must countersign. This is the
+//             only reachable path through `witness.mjs:75`
+//             (`if (m === n) return proof.length === 0 && oldRoot === newRoot;`).
+//   phase 3 — honest checkpoint at n = 2^31+4, root R_new, but the consistency
 //             proof's path[0] is a *different* valid root (the fork) folding to
-//             R_new; the checkpoint signature is honest in both phases, so only
+//             R_new; the checkpoint signature is honest in all phases, so only
 //             the proof's old root is forged -> must refuse, state not advanced.
-// Delete the `fr.toString("hex") === oldRoot &&` conjunct in verifyConsistency
-// and phase 2 countersigns instead: the mode then fails, which is the point.
+// Each deletion turns exactly its own phase red:
+//   delete `fr.toString("hex") === oldRoot &&` (:95) -> phase 3 countersigns;
+//   delete the `if (m === n) ...` line (:75)        -> phase 2 refuses.
 async function selftest() {
   const { mkdtempSync, rmSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
@@ -241,21 +247,29 @@ async function selftest() {
   const R_NEW = foldTo(M, N, p2);
   const R_FORK = p2[0];
   if (R_FORK === R_M) { console.error("selftest: fixture is degenerate (fork root equals witnessed root)"); return 1; }
+  // Phase plan: size offered per phase, and what the size actually forces.
+  //   phase 1: M            (first observation)
+  //   phase 2: M            (m === n: the same-size line, proof [])
+  //   phase 3: N            (m < n: the fork in path[0])
   let phase = 1;
   globalThis.fetch = async (url, opts) => {
     void opts;
     const u = new URL(String(url));
     const json = (o) => ({ ok: true, status: 200, json: async () => o });
     if (u.pathname === "/api/checkpoint") {
-      const size = phase === 1 ? M : N, root = phase === 1 ? R_M : R_NEW;
+      const size = phase === 3 ? N : M, root = phase === 3 ? R_NEW : R_M;
       return json({ registry_public_key: { x: keyX }, checkpoints: [{ log: "identity_events", tree_size: size, root, sig: sigFor(size, root), created_at: created }] });
     }
-    if (u.pathname === "/api/checkpoint/consistency") return json({ log: "identity_events", from: M, to: N, proof: p2 });
+    if (u.pathname === "/api/checkpoint/consistency") {
+      // At m === n a well-formed registry has nothing to prove: from = to, empty proof.
+      if (phase === 2) return json({ log: "identity_events", from: M, to: M, proof: [] });
+      return json({ log: "identity_events", from: M, to: N, proof: p2 });
+    }
     return { ok: false, status: 404, json: async () => ({}) };
   };
   const lastLine = () => { const p = join(dir, "countersignatures.jsonl"); if (!existsSync(p)) return null; const ls = readFileSync(p, "utf8").trim().split("\n"); return ls.length ? JSON.parse(ls[ls.length - 1]) : null; };
   const rows = [];
-  for (phase = 1; phase <= 2; phase++) {
+  for (phase = 1; phase <= 3; phase++) {
     const f = await run();
     const line = lastLine();
     rows.push({ phase, failures: f, status: line?.status ?? "(no line)" });
@@ -263,9 +277,12 @@ async function selftest() {
   const stateAfter = JSON.parse(readFileSync(join(dir, "last-heads.json"), "utf8"));
   console.log(`selftest: in-process registry stub, state=${dir}`);
   for (const r of rows) console.log(`  phase${r.phase}: exit-failures=${r.failures} status=${r.status}`);
-  const ok = rows[0].status === "countersigned" && rows[1].status === "refused-consistency-failure" && rows[1].failures >= 1 && stateAfter.identity_events?.tree_size === M;
-  if (ok) console.log("selftest: PASS — honest witness refuses a forked old root, and its state stays at the last proven head");
-  else console.error("selftest: FAIL — expected countersigned then refused-consistency-failure with state held at m; got " + JSON.stringify(rows));
+  const ok = rows[0].status === "countersigned"
+    && rows[1].status === "countersigned"
+    && rows[2].status === "refused-consistency-failure" && rows[2].failures >= 1
+    && stateAfter.identity_events?.tree_size === M;
+  if (ok) console.log("selftest: PASS — same-size countersigns, a forked old root is refused, and state stays at the last proven head");
+  else console.error("selftest: FAIL — expected countersigned, countersigned, refused-consistency-failure with state held at m; got " + JSON.stringify(rows));
   return ok ? 0 : 1;
 }
 
