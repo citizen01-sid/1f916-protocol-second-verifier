@@ -1,51 +1,20 @@
-# transcript - 2026-10-23, node v24.22.0
-
-## base file
-witness.mjs sha256 e1f0c9730da65d31341310cb7ff38eff217a94f411cf2ab7d7e4ab809fca7c68 (served snapshot = protocol#20 head 419c095 = main 728e33ec)
-patched        sha256 85636dc32ff3c5648d36b6e965794e669c1e824961217e948304a5da74d87689
-
-## 1. patched witness.mjs --selftest (honest, all three phases)
-$ node witness.mjs --selftest
+new witness identity generated at /tmp/witness-selftest-iK5Vts/witness-key.json — public key 1mgBMz2lRkhouPMLJhMjb9tL7ra3e7PP_QyOvjD-xLM
+trust-on-first-use: pinned registry key 0CSFLmbjB3iT… in /tmp/witness-selftest-iK5Vts/registry-key.json — verify it against the project site and repo before relying on this witness
 identity_events: countersigned size=2147483650 (first observation)
 identity_events: countersigned size=2147483650 (verified from 2147483650)
-identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see TMPDIR/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
-selftest: in-process registry stub, state=TMPDIR
-  phase1: exit-failures=0 status=countersigned
-  phase2: exit-failures=0 status=countersigned
-  phase3: exit-failures=1 status=refused-consistency-failure
-selftest: PASS — same-size countersigns, a forked old root is refused, and state stays at the last proven head
-exit=0
-
-## 2. same mode with witness.mjs:95 old-root conjunct deleted
-$ sed "s/return fr.toString(\"hex\") === oldRoot && sr.../return sr.../"  # :95
-identity_events: countersigned size=2147483650 (first observation)
-identity_events: countersigned size=2147483650 (verified from 2147483650)
-identity_events: countersigned size=2147483652 (verified from 2147483650)
-selftest: in-process registry stub, state=TMPDIR
-  phase1: exit-failures=0 status=countersigned
-  phase2: exit-failures=0 status=countersigned
-  phase3: exit-failures=0 status=countersigned
-selftest: FAIL — expected countersigned, countersigned, refused-consistency-failure with state held at m; got [{"phase":1,"failures":0,"status":"countersigned"},{"phase":2,"failures":0,"status":"countersigned"},{"phase":3,"failures":0,"status":"countersigned"}]
-exit=1
-
-## 3. same mode with witness.mjs:75 same-size line deleted
-$ sed "/if (m === n) return proof.length === 0 && oldRoot === newRoot;/d"  # :75
-identity_events: countersigned size=2147483650 (first observation)
 identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483650 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see TMPDIR/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483650 — recorded UNSIGNED, state not advanced
+1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
 identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see TMPDIR/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
-selftest: in-process registry stub, state=TMPDIR
+1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
+1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
+1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+selftest: in-process registry stub, state=/tmp/witness-selftest-iK5Vts
   phase1: exit-failures=0 status=countersigned
-  phase2: exit-failures=1 status=refused-consistency-failure
+  phase2: exit-failures=0 status=countersigned
   phase3: exit-failures=1 status=refused-consistency-failure
-selftest: FAIL — expected countersigned, countersigned, refused-consistency-failure with state held at m; got [{"phase":1,"failures":0,"status":"countersigned"},{"phase":2,"failures":1,"status":"refused-consistency-failure"},{"phase":3,"failures":1,"status":"refused-consistency-failure"}]
-exit=1
-
-## 4. production-path parity, original vs patched, same stub registry (see parity.sh)
-orig: run1 rc=0 | run2 rc=1
-new : run1 rc=0 | run2 rc=1
-run1 transcript diff: IDENTICAL
-run2 transcript diff: IDENTICAL
-  orig run2: identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
+  phase4: exit-failures=1 status=refused-consistency-failure
+  phase5: exit-failures=1 status=refused-consistency-failure
