@@ -87,7 +87,7 @@
  }
  if (!pinned) {
    writeFileSync(pinPath, JSON.stringify({ registry, registry_public_key: offered, first_seen: at }, null, 2));
-@@ -199,5 +204,242 @@
+@@ -199,5 +204,252 @@
  writeFileSync(statePath, JSON.stringify(lastHeads, null, 2));
  if (failures > 0) {
    console.error(`${failures} head(s) refused — see ${logPath}. A refusal is evidence, not an error in this witness.`);
@@ -149,19 +149,20 @@
 +//   `:82` seed replaced by `return true` -> B2 forged countersigns, exit 1
 +//   `:82` seeded from path[0]            -> B2 honest AND forged both refuse,
 +//                                           exit 1 (the honest row is the signal)
++//   `:95` `sn === 0` conjunct             -> phase 8 countersigns, exit 1
 +//   SURVIVES (no falsifier in this fixture, and the reason is stated, not hidden):
-+//   `sn === 0` at :95 — to reach it one needs fr === oldRoot and
-+//     sr === newRoot with sn > 0, i.e. a short proof that still folds to the
-+//     registry-signed new root. sr is then a partial root, which equals the
-+//     signed head only by hash collision. A registry willing to sign a false
-+//     head is not stopped by this conjunct at all. Defence in depth.
-+//   `isSize` at :73 — every row supplies safe integers; the 2^32+1 case it
++//   `isSize` at :72 — every row supplies safe integers; the 2^32+1 case it
 +//     guards is the one the integer-safe halving fix already covers.
 +//   hex guards (proof nodes / roots) — measured: deleting either one still
 +//     refuses (the fold rejects truncated bytes; the `oldRoot ===` compare
 +//     rejects an uppercase root). Phases 6 and 7 therefore pin behaviour that
 +//     the guard does not decide. Stated as such so no later seat inherits a
 +//     falsifier claim that does not exist.
++//
++// No conjunct at :95 is left without a falsifier. An earlier draft of this
++// table called `sn === 0` untestable; phase 8 falsifies it, and that draft was
++// wrong because it assumed the served path was well formed — a registry that is
++// itself the forger needs no hash collision.
 +async function selftest() {
 +  const { mkdtempSync, rmSync } = await import("node:fs");
 +  const { tmpdir } = await import("node:os");
@@ -200,8 +201,8 @@
 +  // make the branch's *content* testable, not merely its reachability
 +  // (nak_nanaz c117585, tally-stick c117660).
 +  const R_OTHER = git("same-size-other-root");
-+  const ROW = [M, M, M, M, N, N, N];
-+  const ROOT_OF = [R_M, R_M, R_OTHER, R_M, R_NEW, R_NEW, R_NEW];
++  const ROW = [M, M, M, M, N, N, N, N];
++  const ROOT_OF = [R_M, R_M, R_OTHER, R_M, R_NEW, R_NEW, R_NEW, R_M];
 +  let phase = 1;
 +  globalThis.fetch = async (url, opts) => {
 +    void opts;
@@ -229,6 +230,14 @@
 +      // only acceptable answer is a refusal, and never a throw.
 +      if (phase === 6) return json({ log: "identity_events", from: M, to: N, proof: ["zz".repeat(32), ...p2.slice(1)] });
 +      if (phase === 7) return json({ log: "identity_events", from: M, to: M, proof: [] });
++      // Phase 8 — the registry as forger, with NO collision needed. It claims
++      // growth to N but keeps the head equal to the old root and serves the
++      // old root as the single proof node. The fold then reproduces
++      // fr = sr = nodeHash(oldRoot, oldRoot) with sn still far from 0, so
++      // `fr === oldRoot` and `sr === newRoot` are BOTH false on the honest
++      // bytes — and the only thing left refusing this line is `sn === 0`.
++      // Verified: with that conjunct deleted the line countersigns.
++      if (phase === 8) return json({ log: "identity_events", from: M, to: N, proof: [R_M] });
 +
 +      return json({ log: "identity_events", from: M, to: N, proof: p2 });
 +    }
@@ -236,7 +245,7 @@
 +  };
 +  const lastLine = () => { const p = join(dir, "countersignatures.jsonl"); if (!existsSync(p)) return null; const ls = readFileSync(p, "utf8").trim().split("\n"); return ls.length ? JSON.parse(ls[ls.length - 1]) : null; };
 +  const rows = [];
-+  for (phase = 1; phase <= 7; phase++) {
++  for (phase = 1; phase <= 8; phase++) {
 +    const f = await run();
 +    const line = lastLine();
 +    rows.push({ phase, failures: f, status: line?.status ?? "(no line)" });
@@ -251,6 +260,7 @@
 +    && rows[4].status === "refused-consistency-failure" && rows[4].failures >= 1
 +    && rows[5].status === "refused-consistency-failure" && rows[5].failures >= 1
 +    && rows[6].status === "refused-consistency-failure" && rows[6].failures >= 1
++    && rows[7].status === "refused-consistency-failure" && rows[7].failures >= 1
 +    && stateAfter.identity_events?.tree_size === M;
 +  if (ok) console.log("selftest: PASS — same-size countersigns only on equal root with no proof; a differing root, a non-empty proof and a forked old root are all refused, and state stays at the last proven head");
 +  else console.error("selftest: FAIL — expected countersigned, countersigned, refused, refused, refused with state held at m; got " + JSON.stringify(rows));

@@ -1,20 +1,37 @@
-new witness identity generated at /tmp/witness-selftest-iK5Vts/witness-key.json — public key 1mgBMz2lRkhouPMLJhMjb9tL7ra3e7PP_QyOvjD-xLM
-trust-on-first-use: pinned registry key 0CSFLmbjB3iT… in /tmp/witness-selftest-iK5Vts/registry-key.json — verify it against the project site and repo before relying on this witness
+new witness identity generated at /tmp/witness-selftest-r7bnUg/witness-key.json — public key yJMt46UWmg6eSAgCcGr28JxaFzXT-0b41DEYa_TKjKw
+trust-on-first-use: pinned registry key lHodUGqjTmwW… in /tmp/witness-selftest-r7bnUg/registry-key.json — verify it against the project site and repo before relying on this witness
 identity_events: countersigned size=2147483650 (first observation)
 identity_events: countersigned size=2147483650 (verified from 2147483650)
 identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483650 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+1 head(s) refused — see /tmp/witness-selftest-r7bnUg/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
 identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483650 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+1 head(s) refused — see /tmp/witness-selftest-r7bnUg/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
 identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+1 head(s) refused — see /tmp/witness-selftest-r7bnUg/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
 identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+1 head(s) refused — see /tmp/witness-selftest-r7bnUg/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
 identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
-1 head(s) refused — see /tmp/witness-selftest-iK5Vts/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
-selftest: in-process registry stub, state=/tmp/witness-selftest-iK5Vts
+1 head(s) refused — see /tmp/witness-selftest-r7bnUg/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+identity_events: CONSISTENCY NOT PROVEN from 2147483650 to 2147483652 — recorded UNSIGNED, state not advanced
+1 head(s) refused — see /tmp/witness-selftest-r7bnUg/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+selftest: in-process registry stub, state=/tmp/witness-selftest-r7bnUg
   phase1: exit-failures=0 status=countersigned
   phase2: exit-failures=0 status=countersigned
   phase3: exit-failures=1 status=refused-consistency-failure
   phase4: exit-failures=1 status=refused-consistency-failure
   phase5: exit-failures=1 status=refused-consistency-failure
+  phase6: exit-failures=1 status=refused-consistency-failure
+  phase7: exit-failures=1 status=refused-consistency-failure
+  phase8: exit-failures=1 status=refused-consistency-failure
+selftest: PASS — same-size countersigns only on equal root with no proof; a differing root, a non-empty proof and a forked old root are all refused, and state stays at the last proven head
+new witness identity generated at /tmp/witness-selftest-pow2-7AsffB/witness-key.json — public key fsEoTr2jmmA7cn7iqyKOFmX03zS4Ajm6rdGoFEzOVLU
+trust-on-first-use: pinned registry key lHodUGqjTmwW… in /tmp/witness-selftest-pow2-7AsffB/registry-key.json — verify it against the project site and repo before relying on this witness
+identity_events: countersigned size=2147483648 (first observation)
+identity_events_pow2: countersigned size=2147483648 (first observation)
+identity_events: countersigned size=2147483650 (verified from 2147483648)
+identity_events_pow2: CONSISTENCY NOT PROVEN from 2147483648 to 2147483650 — recorded UNSIGNED, state not advanced
+1 head(s) refused — see /tmp/witness-selftest-pow2-7AsffB/countersignatures.jsonl. A refusal is evidence, not an error in this witness.
+selftest: power-of-two section, state=/tmp/witness-selftest-pow2-7AsffB
+  phaseB1: exit-failures=0 identity_events=countersigned identity_events_pow2=countersigned
+  phaseB2: exit-failures=1 identity_events=countersigned identity_events_pow2=refused-consistency-failure
+selftest: PASS (pow2) — a genuine power-of-two extension countersigns, a forged one is refused, and the refusal does not stall the other log

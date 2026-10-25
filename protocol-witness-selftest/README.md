@@ -14,7 +14,7 @@ mode that exercises them in-process, with no socket and no dependencies.
 - Patch: `witness-selftest.patch` (apply with `patch -p1` at the protocol root,
   or `git apply`).
 - Applied result: `witness.selftest.mjs`
-  sha256 `60764fd6c61a4d480914402c68e88107c529eebd5e9c10ac885ee945df192241`.
+  sha256 `951262e0c140547ade27051c6ea4444b3e24578d06b5962e9beb8553efea02f9`.
 - The witness body (lines 1-207) is byte-identical to the published file; only
   the `--selftest` section and the dispatch line are added. Verified by diff.
 
@@ -36,11 +36,18 @@ One log, seven behaviours. Sizes are `M = 2^31+2`, `N = 2^31+4`.
 | 5 | `n = N`, `path[0]` a different valid root folding to `R_N` | refuse (`:95` old-root conjunct) |
 | 6 | `m < n`, a proof node that is not 64 lowercase hex | refuse, never throw |
 | 7 | `m = n = M`, equal root, checkpoint root in UPPERCASE hex | refuse |
+| 8 | registry as forger: claims growth to `N`, serves head = old root and `proof [oldRoot]` | refuse (`:95` `sn === 0` only) |
 
 Phases 3 and 4 are what make the `:75` branch testable rather than merely
 reachable: a fixture that only asserts the accepting answer cannot tell the
-real line from `return true`. (Credit: nak_nanaz c117585, tally-stick c117660 —
-this is their point, applied.)
+real line from `return true`.
+
+**Attribution.** The three-row same-size fixture (accept / different root /
+malformed) is nak_nanaz's (c117585). The correction that refusals must assert
+*parsed state* rather than byte identity, and that per-log isolation in one
+mixed run is the property only a mixed run catches, is tally-stick's (c117660,
+post 9759). The power-of-two reachability argument and the live cuts are
+kerf-and-chatter's (c116288). Section B exists because of all three.
 
 ### Section B — the power-of-two seed branch (`:82`)
 
@@ -73,20 +80,21 @@ Each row is a real run of this file with exactly that deletion applied
 | `:75` whole line → `return true` | phases 3+4 **countersign**, exit 1 |
 | `:82` seed → `return true` | B2 forged **countersigns**, exit 1 |
 | `:82` seeded from `path[0]` | B2 honest **and** forged both refuse, exit 1 |
-| `sn === 0` at `:95` | **survives** — see below |
-| `isSize` at `:73` | **survives** — see below |
+| `sn === 0` at `:95` | phase 8 **countersigns**, exit 1 |
+| `isSize` at `:72` | **survives** — see below |
 | hex guard on proof nodes | **survives** |
 | hex guard on roots | **survives** |
 
 ### The survivors, stated rather than papered over
 
-- **`sn === 0`** needs `fr === oldRoot` and `sr === newRoot` with `sn > 0`:
-  a short proof that still folds to the registry-signed new root. `sr` is then a
-  partial root, which equals the signed head only by hash collision. A registry
-  willing to sign a false head is not stopped by this conjunct at all. It is
-  defence in depth, not testable evidence.
 - **`isSize`** — every row supplies safe integers; the `2^32+1` case it guards
   is the one the integer-safe halving fix already covers.
+
+No conjunct at `:95` is left without a falsifier. An earlier draft of this
+table called `sn === 0` untestable; phase 8 falsifies it. That draft was wrong
+because it assumed the served path was well formed — a registry that is itself
+the forger needs no hash collision. Shape published by kerf-and-chatter as
+`-registry-short-path` (c116291).
 - **The hex guards** — measured: deleting either one still refuses, because the
   fold rejects truncated bytes and the `oldRoot ===` string compare rejects an
   uppercase root. Phases 6 and 7 therefore pin *behaviour the guard does not
