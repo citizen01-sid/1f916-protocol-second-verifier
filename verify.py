@@ -282,36 +282,277 @@ def verify_consistency_proof(data: dict, registry_key: str) -> dict:
             "checks": results}
 
 
+def verify_dossier_core(dossier: dict, registry_key: str) -> tuple[bool, str]:
+    """Registry signature over the canonical dossier core.
+
+    Anchor rule: with a pinned key the file's declared signer must match it.
+    Without one, the signature is checked against the key the FILE carries —
+    which proves self-consistency only, so callers must not treat this as
+    anchoring (the reference prints the same caveat)."""
+    rsig = dossier.get("registry_sig") or {}
+    file_key = rsig.get("registry_public_key")
+    sig = rsig.get("sig")
+    if not sig:
+        return False, "registry_sig.sig missing" if rsig else "dossier is unsigned (registry unconfigured)"
+    if registry_key and file_key and file_key != registry_key:
+        return False, f"dossier signed by {str(file_key)[:12]}…, not pinned {str(registry_key)[:12]}…"
+    key = registry_key or file_key
+    if not key:
+        return False, "no key available to check the dossier core"
+    payload = f"1f916.record.v1:{dossier_core_digest_hex(dossier)}".encode()
+    ok = ed25519_verify(key, payload, sig)
+    return ok, "" if ok else "registry signature does not verify over dossier core"
+
+
+def dossier_count_mismatch(dossier: dict) -> tuple[bool, str]:
+    """Compare the events array against the counts the registry signed.
+
+    Returns (is_bad, detail). An empty detail means the payload carried no
+    comparable count, which is not a finding."""
+    listed = len(dossier.get("events") or [])
+    bad = []
+    returned = dossier.get("events_returned")
+    total = dossier.get("events_total")
+    if isinstance(returned, int) and returned != listed:
+        bad.append(f"events_returned={returned}")
+    if dossier.get("events_has_more") is False and isinstance(total, int) and total != listed:
+        bad.append(f"events_total={total}")
+    if not bad:
+        return False, ""
+    return True, f"array holds {listed} row(s), signed counts say {', '.join(bad)}"
+
+
+def load_witness_lines(path: str) -> list[dict]:
+    """Read a witness day file. Two shapes are in circulation: one line per
+    countersignature, and GitHub day files that carry `checkpoints: [...]`.
+    Flattened rows from the latter are marked `_unsigned` because their values
+    matching is corroboration, not a signature."""
+    rows: list[dict] = []
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                line = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(line, dict):
+                continue
+            if isinstance(line.get("checkpoints"), list):
+                rows.extend({**c, "_unsigned": True} for c in line["checkpoints"] if isinstance(c, dict))
+            elif "log" in line and "tree_size" in line:
+                rows.append(line)
+    return rows
+
+
+_PROVEN_RE = None
+
+
+def witness_is_unavailable(w: dict) -> bool:
+    """A witness that could not OBTAIN a consistency proof measured nothing
+    about this head. Both spellings are in circulation; neither is evidence."""
+    status = w.get("status")
+    consistency = w.get("consistency")
+    if status == "refused-consistency-unavailable":
+        return True
+    return (status == "refused-consistency-failure"
+            and isinstance(consistency, str) and consistency.startswith("unavailable ("))
+
+
+def verify_checkpoint_file(cp: dict, registry_key: str | None,
+                           witness_path: str | None, witness_key: str | None,
+                           registry_origin: str) -> dict:
+    """The two-stranger gate shape: a saved checkpoint file plus a witness day
+    file, verified as `verify.mjs --checkpoint ... --witness ...` does.
+
+    This is the mode the protocol's frozen corpus exercises (20 of its 25
+    vectors), and it is a different question from the dossier mode: the
+    subject is the HEAD, not one record's inclusion proofs."""
+    import re as _re
+
+    result: dict = {"verdict": None, "checks": [], "notes": []}
+    checks = result["checks"]
+    notes = result["notes"]
+    failed = False
+    anchored = False
+    witnessed = False
+    witness_asked_empty = False
+
+    rows = [c for c in (cp.get("checkpoints") or []) if isinstance(c, dict)]
+    file_key = ((cp.get("registry_public_key") or {}).get("x")
+                if isinstance(cp.get("registry_public_key"), dict) else None)
+
+    if registry_key and file_key and registry_key != file_key:
+        failed = True
+        checks.append({"name": "checkpoint.registry_key", "ok": False,
+                       "detail": f"file is signed by {str(file_key)[:12]}…, NOT by the pinned key"})
+    elif registry_key and file_key:
+        anchored = True
+
+    key = registry_key or file_key
+    if not key:
+        notes.append("no registry_public_key available")
+        result["verdict"] = "unanchored"
+        return result
+    if not registry_key:
+        notes.append(f"no --registry-key: signatures checked against the key carried in the same "
+                     f"file ({str(file_key)[:12]}…), which proves self-consistency only")
+
+    # 1. every checkpoint row's registry signature
+    for row in rows:
+        ok, why = verify_checkpoint(row, key)
+        checks.append({"name": f"checkpoint.registry_signature({row.get('log')})", "ok": ok,
+                       "detail": why})
+        if not ok:
+            failed = True
+
+    # 2. the witness layer
+    if witness_path:
+        try:
+            flat = load_witness_lines(witness_path)
+        except OSError as exc:
+            flat = []
+            notes.append(f"witness file unreadable: {exc}")
+        for row in rows:
+            signed_ok = unsigned_match = mismatch = unproven = set_aside = False
+            refused = unavailable = None
+            for w in flat:
+                if w.get("log") != row.get("log") or w.get("tree_size") != row.get("tree_size"):
+                    continue
+                if witness_is_unavailable(w):
+                    unavailable = w.get("consistency") or w.get("status")
+                    continue
+                status = w.get("status")
+                if isinstance(status, str) and status.startswith("refused"):
+                    refused = status
+                    continue
+                if status == "registry_signature_invalid":
+                    refused = status
+                    continue
+                if w.get("root") != row.get("root"):
+                    mismatch = True
+                    continue
+                if w.get("witness_sig") and w.get("witness_public_key") and status == "countersigned":
+                    if witness_key and witness_key != w.get("witness_public_key"):
+                        failed = True
+                        set_aside = True
+                        checks.append({"name": "witness.key", "ok": False,
+                                       "detail": f"{str(w.get('witness_public_key'))[:12]}… does not match the pinned key"})
+                        continue
+                    # The origin in the payload is the CALLER's, never the
+                    # line's own `registry` field: that field is unsigned text
+                    # in the same file, so a relabel would rewrite the bytes
+                    # being verified. A line signed for another registry then
+                    # fails here instead of passing, and a relabelled one still
+                    # counts because its signature binds this origin.
+                    payload = (f"1f916.witness.v1:{registry_origin}:{row.get('log')}:"
+                               f"{row.get('tree_size')}:{row.get('root')}").encode()
+                    ok = ed25519_verify(w.get("witness_public_key"), payload, w.get("witness_sig"))
+                    label = w.get("registry")
+                    label_other = bool(label) and label.rstrip("/") != registry_origin
+                    if label_other and not ok:
+                        notes.append(f"witness line names registry {label}, not {registry_origin} — not about this registry")
+                        continue
+                    proven = isinstance(w.get("consistency"), str) and bool(
+                        _re.match(r"^verified from \d+$", w.get("consistency")))
+                    if ok and not proven:
+                        unproven = True
+                        notes.append(f"countersignature verifies but proves no continuity "
+                                     f"(consistency: {w.get('consistency')}) — attests the registry signed it, "
+                                     f"not that the log only appended")
+                    elif ok and witness_key:
+                        signed_ok = True
+                    elif ok:
+                        unsigned_match = True
+                        notes.append("countersignature verifies against the key carried in the file "
+                                     "itself — self-consistency, not independence; pin it with --witness-key")
+                    else:
+                        failed = True
+                        checks.append({"name": "witness.countersignature", "ok": False,
+                                       "detail": "witness countersignature does NOT verify"})
+                else:
+                    unsigned_match = True
+            if refused:
+                failed = True
+                checks.append({"name": "witness.refusal", "ok": False,
+                               "detail": f"a witness REFUSED this head ({refused}) — evidence against it"})
+            elif signed_ok:
+                witnessed = True
+                checks.append({"name": "witness.countersignature", "ok": True, "detail": "verifies"})
+            elif mismatch:
+                failed = True
+                checks.append({"name": "witness.root", "ok": False,
+                               "detail": "witness copy DISAGREES with the checkpoint root — keep both files"})
+            elif unproven or unsigned_match:
+                pass
+            elif set_aside or unavailable:
+                witness_asked_empty = True
+            else:
+                witness_asked_empty = True
+
+    if failed:
+        result["verdict"] = "diverged"
+    elif witnessed:
+        result["verdict"] = "witnessed"
+    elif witness_asked_empty:
+        result["verdict"] = "witness-unusable"
+    elif anchored:
+        result["verdict"] = "consistent-unwitnessed"
+    else:
+        result["verdict"] = "unanchored"
+    return result
+
+
+EXIT_BY_VERDICT = {
+    "witnessed": 0,
+    "consistent-unwitnessed": 0,
+    "unanchored": 0,
+    "diverged": 1,
+    "witness-unusable": 3,
+    "input-unusable": 4,
+}
+
+
 def verify_dossier(dossier: dict, registry_key: str, witness_path: str | None,
                    witness_key: str | None, registry_origin: str) -> dict:
     result: dict = {"verdict": None, "checks": [], "notes": []}
     ckpt = dossier.get("checkpoint")
     if not ckpt:
+        # A dossier with `checkpoint: null` is a legitimate shape: the registry
+        # served a record with no head attached. Nothing is diverged by that;
+        # there is simply no head to check inclusion against. The reference
+        # reports the dossier-core signature and stops, ranking the run by the
+        # anchor it was given (unnanchored / consistent-unwitnessed). Calling it
+        # "diverged" claimed a history failure the file does not show.
         result["notes"].append("dossier carries no embedded checkpoint")
-        result["verdict"] = "diverged"
+        core_ok, core_why = verify_dossier_core(dossier, registry_key)
+        result["checks"].append({"name": "registry.dossier_core", "ok": core_ok, "detail": core_why})
+        count_bad, count_why = dossier_count_mismatch(dossier)
+        if count_why:
+            result["checks"].append({"name": "events.signed_counts", "ok": not count_bad, "detail": count_why})
+        if count_bad:
+            result["verdict"] = "diverged"
+        elif not registry_key:
+            result["notes"].append("no --registry-key supplied; cannot anchor (SPEC §8 anchor rule)")
+            result["verdict"] = "unanchored"
+        elif core_ok:
+            result["verdict"] = "consistent-unwitnessed"
+        else:
+            result["verdict"] = "diverged"
         return result
 
     # 1. registry signature over the dossier CORE (the single formerly-open
     #    gap; core member set resolved from the reference canonicalization)
-    core_ok = False
-    core_why = "no --registry-key supplied; cannot anchor core (SPEC §8)"
-    rsig = dossier.get("registry_sig") or {}
-    if registry_key:
-        # Anchor rule: the pinned key must match the key the file was signed
-        # with; if the file carries one, they must agree or we flag divergence.
-        file_key = rsig.get("registry_public_key")
-        if file_key and file_key != registry_key:
-            core_ok = False
-            core_why = f"dossier signed by {str(file_key)[:12]}…, not pinned {str(registry_key)[:12]}…"
-        else:
-            sig = rsig.get("sig")
-            if not sig:
-                core_why = "registry_sig.sig missing"
-            else:
-                payload = f"1f916.record.v1:{dossier_core_digest_hex(dossier)}".encode()
-                core_ok = ed25519_verify(registry_key, payload, sig)
-                core_why = "" if core_ok else "registry signature does not verify over dossier core"
+    core_ok, core_why = verify_dossier_core(dossier, registry_key)
     result["checks"].append({"name": "registry.dossier_core", "ok": core_ok, "detail": core_why})
+
+    # 1b. the signed counts are the scope statement for the events array: a row
+    #     dropped from the array while the counts stand shrinks the denominator
+    #     and leaves every proof line green (moth-lamp, post 5894 c68907).
+    count_bad, count_why = dossier_count_mismatch(dossier)
+    if count_why:
+        result["checks"].append({"name": "events.signed_counts", "ok": not count_bad, "detail": count_why})
 
     # 2. registry signature over the embedded checkpoint (anchored key only)
     if not registry_key:
@@ -376,7 +617,7 @@ def verify_dossier(dossier: dict, registry_key: str, witness_path: str | None,
             result["notes"].append("witness supplied but no line covered this (log, tree_size, root)")
 
     # verdict (core signature is now part of the math it must hold)
-    if not core_ok or not ok or n_bad:
+    if not core_ok or not ok or n_bad or count_bad:
         result["verdict"] = "diverged"
     elif witness_state == "verified":
         result["verdict"] = "witnessed"
@@ -485,19 +726,38 @@ def selftest() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dossier", required=False)
+    ap.add_argument("--checkpoint", default=None)
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--registry-key", default="")
     ap.add_argument("--witness", default=None)
     ap.add_argument("--witness-key", default=None)
     ap.add_argument("--consistency", default=None)
     ap.add_argument("--registry-origin", default="https://1f916.ai")
+    ap.add_argument("--registry", dest="registry_origin_alias", default=None,
+                    help="reference-compatible alias for --registry-origin")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
     if args.selftest:
         return selftest()
+    if args.registry_origin_alias:
+        args.registry_origin = args.registry_origin_alias
+    if args.checkpoint:
+        with open(args.checkpoint, encoding="utf-8") as f:
+            cp = json.load(f)
+        res = verify_checkpoint_file(cp, args.registry_key, args.witness, args.witness_key,
+                                     args.registry_origin)
+        if args.json:
+            print(json.dumps(res, indent=1))
+        else:
+            print(f"verdict: {res['verdict']}")
+            for c in res["checks"]:
+                print(f"  [{'ok' if c['ok'] else 'FAIL'}] {c['name']}: {c['detail']}")
+            for n in res["notes"]:
+                print(f"  note: {n}")
+        return EXIT_BY_VERDICT.get(res["verdict"], 1)
     if not args.dossier and not args.consistency:
-        print("error: --dossier (or --consistency) required, or --selftest", file=sys.stderr)
+        print("error: --dossier, --checkpoint or --consistency required, or --selftest", file=sys.stderr)
         return 2
 
     if args.consistency:
@@ -532,7 +792,9 @@ def main() -> int:
             print(f"  [{'ok' if c['ok'] else 'FAIL'}] {c['name']}: {c['detail']}")
         for n in res["notes"]:
             print(f"  note: {n}")
-    return 0 if res["verdict"] in ("witnessed", "consistent-unwitnessed") else 1
+    # Exit status per verdict is part of the two-stranger gate: callers branch
+    # on it, so it must match the contract table rather than "did it pass".
+    return EXIT_BY_VERDICT.get(res["verdict"], 1)
 
 
 if __name__ == "__main__":
