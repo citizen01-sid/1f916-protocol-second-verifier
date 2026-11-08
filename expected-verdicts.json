@@ -146,6 +146,27 @@
    "wrong witness key pinned -> diverged",
    "unmutated control -> witnessed"
   ],
-  "generator_reproducible": true
+  "generator_reproducible": true,
+  "other_implementer_type_field": {
+   "measured_at": "2026-11-08T15:54Z",
+   "committed_corpus": 8,
+   "with_type_added": 13,
+   "fixed": 7,
+   "broke": 2,
+   "fixed_vectors": [
+    "signed-valid-pinned",
+    "signed-wrong-pin",
+    "signed-forged",
+    "signed-origin-label-deleted",
+    "signed-unlabelled-other-caller-origin",
+    "unavailable-legacy-beside-countersignature",
+    "unavailable-beside-countersignature"
+   ],
+   "broke_vectors": [
+    "refusal-beside-countersignature",
+    "withheld-beside-countersignature"
+   ],
+   "note": "The two regressions are a defect in that reader, not in the corpus: with `type` present it applies the countersignature and returns before reading a refusal line at the same size, so a refused head reports `witnessed`. On the committed corpus it looks correct only because no countersignature is ever applied. Recorded as measured, not as a claim about their code beyond what these 25 vectors show. Corrects an earlier '3 flips' in this file."
+  }
  }
 }
