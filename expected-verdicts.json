@@ -130,7 +130,14 @@
   "measured_at": "2026-11-08T15:20Z",
   "before_this_change": {
    "agreed": 2,
-   "detail": "20 of 25 vectors are --checkpoint/--witness (gate-on-a-head), a shape this verifier did not implement; 23 of 25 exited 2 on an argument error rather than answering."
+   "wrong_answers": 3,
+   "argument_errors": 20,
+   "argument_errors_breakdown": {
+    "--checkpoint unsupported": 18,
+    "ambiguous --registry abbreviation": 2
+   },
+   "vectors": 25,
+   "detail": "Measured on the parent commit 1289ae7. 20 of 25 exited 2 on argument errors (18 could not be handed --checkpoint/--witness at all; 2 hit an ambiguous --registry abbreviation). 3 ran and answered wrongly, all three the `checkpoint: null` -> diverged defect. Corrects an earlier count of 23 argument errors in this file."
   },
   "controls_observed_to_fail_first": [
    "checkpoint root edited -> diverged",
